@@ -77,9 +77,15 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
+<<<<<<< HEAD
     namespace "com.ridexcustomer"
     defaultConfig {
         applicationId "com.ridexcustomer"
+=======
+    namespace "com.ridex"
+    defaultConfig {
+        applicationId "com.ridex"
+>>>>>>> 93956b05108efbaa274c5028d04e7a442a535515
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

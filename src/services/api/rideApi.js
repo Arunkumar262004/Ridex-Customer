@@ -2,6 +2,7 @@ import api from './axios';
 
 const getVehicleTypes = async () => {
   const response = await api.get('/vehicle-types');
+<<<<<<< HEAD
   return response.data;
 };
 
@@ -49,6 +50,53 @@ const verifyQrAndStartRide = async (rideId, scannedQrData) => {
 
 const completeRide = async (rideId) => {
   const response = await api.post(`/rides/${rideId}/complete`);
+=======
+
+  return response.data;
+};
+
+const getFareEstimate = async ({
+  vehicleTypeId,
+  pickup,
+  destination,
+}) => {
+  const response = await api.post('/rides/estimate', {
+    vehicleTypeId,
+
+    pickup: {
+      latitude: pickup.latitude,
+      longitude: pickup.longitude,
+    },
+
+    destination: {
+      latitude: destination.latitude,
+      longitude: destination.longitude,
+    },
+  });
+
+  return response.data;
+};
+
+const createRide = async ({
+  vehicleTypeId,
+  pickup,
+  destination,
+}) => {
+  const response = await api.post('/rides', {
+    vehicleTypeId,
+
+    pickup: {
+      latitude: pickup.latitude,
+      longitude: pickup.longitude,
+    },
+
+    destination: {
+      latitude: destination.latitude,
+      longitude: destination.longitude,
+    },
+  });
+
+>>>>>>> 93956b05108efbaa274c5028d04e7a442a535515
   return response.data;
 };
 
@@ -56,9 +104,12 @@ export {
   getVehicleTypes,
   getFareEstimate,
   createRide,
+<<<<<<< HEAD
   acceptRide,
   captainArrived,
   getDynamicQrToken,
   verifyQrAndStartRide,
   completeRide,
+=======
+>>>>>>> 93956b05108efbaa274c5028d04e7a442a535515
 };

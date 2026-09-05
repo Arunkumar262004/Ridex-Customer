@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # OSX
 #
 .DS_Store
@@ -73,3 +74,30 @@ yarn-error.log
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+=======
+# Dependencies
+node_modules/
+
+# React Native
+android/.gradle/
+android/build/
+android/app/build/
+
+# iOS
+ios/Pods/
+ios/build/
+
+# IDE
+.idea/
+
+# Environment
+.env
+.env.*
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+>>>>>>> 93956b05108efbaa274c5028d04e7a442a535515
