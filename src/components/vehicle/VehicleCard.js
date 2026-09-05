@@ -23,8 +23,8 @@ const VehicleCard = ({
       activeOpacity={0.8}
     >
       <View style={styles.iconContainer}>
-        <Text style={styles.icon}>
-          {vehicle.icon || '🚗'}
+        <Text style={styles.iconText}>
+          {vehicle?.name ? vehicle.name.charAt(0) : 'V'}
         </Text>
       </View>
 
@@ -77,8 +77,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
-  icon: {
-    fontSize: 28,
+  iconText: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: colors.primary,
   },
 
   details: {

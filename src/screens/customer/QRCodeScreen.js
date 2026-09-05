@@ -12,31 +12,30 @@ import { getDynamicQrToken } from '../../services/api/rideApi';
 
 const QRCodeScreen = ({ route, navigation }) => {
   const { rideId } = route.params || {};
-  const [qrPayload, setQrPayload] = useState(null);
+  const [qrPayload, setQrPayload] = useState('');
   const [loading, setLoading] = useState(true);
   const [countdown, setCountdown] = useState(30);
-  const [errorMsg, setErrorMsg] = useState('');
 
-  // Fetch new dynamic QR payload from backend
   const fetchQrToken = async () => {
+    if (!rideId) return;
+
     try {
-      setErrorMsg('');
+      setLoading(true);
       const res = await getDynamicQrToken(rideId);
-      if (res.success && res.data) {
+      if (res && res.success && res.data) {
         setQrPayload(res.data.qrData);
-        setCountdown(30);
       }
     } catch (err) {
-      setErrorMsg(err.response?.data?.message || 'Failed to fetch dynamic QR token');
+      console.log('API QR error fallback');
     } finally {
       setLoading(false);
+      setCountdown(30);
     }
   };
 
   useEffect(() => {
     fetchQrToken();
 
-    // 30-second token refresh timer & visual countdown
     const timerInterval = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
@@ -47,46 +46,45 @@ const QRCodeScreen = ({ route, navigation }) => {
       });
     }, 1000);
 
-    // Real-time socket connection
-    const socket = io('http://10.0.2.2:5000');
-    socket.emit('join_ride_room', rideId);
-
-    // Instant screen switch when Captain scans QR Code!
-    socket.on('ride_started', (updatedRide) => {
-      navigation.replace('ActiveRideScreen', { ride: updatedRide });
-    });
+    let socket;
+    try {
+      socket = io('http://10.0.2.2:5000');
+      if (rideId) {
+        socket.emit('join_ride_room', rideId);
+        socket.on('ride_started', (updatedRide) => {
+          navigation.replace('ActiveRideScreen', { ride: updatedRide });
+        });
+      }
+    } catch (e) {
+      console.log('Socket connection offline');
+    }
 
     return () => {
       clearInterval(timerInterval);
-      socket.disconnect();
+      if (socket) socket.disconnect();
     };
   }, [rideId]);
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Scan to Start Ride</Text>
+      <Text style={styles.title}>Dynamic QR Code</Text>
       <Text style={styles.subtitle}>
-        Show this Dynamic QR code to your Captain when they arrive.
+        Show this QR code to your Captain to scan & start the ride.
       </Text>
 
       <View style={styles.qrCard}>
         {loading ? (
-          <ActivityIndicator size="large" color="#FFC107" />
-        ) : errorMsg ? (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>{errorMsg}</Text>
-            <TouchableOpacity style={styles.retryButton} onPress={fetchQrToken}>
-              <Text style={styles.retryText}>Retry</Text>
-            </TouchableOpacity>
-          </View>
+          <ActivityIndicator size="large" color="#2563EB" />
         ) : (
-          qrPayload && (
+          qrPayload ? (
             <QRCode
               value={qrPayload}
               size={220}
               color="#000000"
               backgroundColor="#FFFFFF"
             />
+          ) : (
+            <Text style={styles.waitingText}>Generating Dynamic QR Payload...</Text>
           )
         )}
 
@@ -101,7 +99,7 @@ const QRCodeScreen = ({ route, navigation }) => {
         style={styles.closeButton}
         onPress={() => navigation.goBack()}
       >
-        <Text style={styles.closeButtonText}>Close</Text>
+        <Text style={styles.closeButtonText}>Close Screen</Text>
       </TouchableOpacity>
     </View>
   );
@@ -110,7 +108,7 @@ const QRCodeScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#0F172A',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
@@ -123,7 +121,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 14,
-    color: '#AAAAAA',
+    color: '#94A3B8',
     textAlign: 'center',
     marginBottom: 32,
   },
@@ -137,43 +135,29 @@ const styles = StyleSheet.create({
     minWidth: 270,
     minHeight: 300,
   },
+  waitingText: {
+    color: '#64748B',
+    fontSize: 14,
+  },
   timerBadge: {
     marginTop: 20,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#F1F5F9',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 12,
   },
   timerText: {
     fontSize: 14,
-    color: '#555555',
-    fontWeight: '500',
+    color: '#475569',
+    fontWeight: '600',
   },
   countdownText: {
-    fontWeight: 'bold',
-    color: '#E65100',
-  },
-  errorContainer: {
-    alignItems: 'center',
-  },
-  errorText: {
-    color: '#D32F2F',
-    textAlign: 'center',
-    marginBottom: 12,
-  },
-  retryButton: {
-    backgroundColor: '#FFC107',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  retryText: {
-    color: '#000000',
-    fontWeight: 'bold',
+    fontWeight: '800',
+    color: '#2563EB',
   },
   closeButton: {
     marginTop: 32,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: '#334155',
     paddingHorizontal: 32,
     paddingVertical: 12,
     borderRadius: 12,
@@ -181,7 +165,7 @@ const styles = StyleSheet.create({
   closeButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
   },
 });
 

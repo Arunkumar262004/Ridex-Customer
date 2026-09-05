@@ -1,7 +1,3 @@
 <resources>
-<<<<<<< HEAD
     <string name="app_name">RidexCustomer</string>
-=======
-    <string name="app_name">Ridex</string>
->>>>>>> 93956b05108efbaa274c5028d04e7a442a535515
 </resources>
