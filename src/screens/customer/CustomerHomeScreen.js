@@ -1,72 +1,94 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   SafeAreaView,
 } from 'react-native';
 import RideMap from '../../components/map/RideMap';
 import colors from '../../constants/colors';
+import { getCurrentLocation } from '../../services/location/locationService';
+
+const DEFAULT_LOCATION = { latitude: 12.9716, longitude: 77.5946 };
+
+const EXPLORE_ITEMS = [
+  { id: 'parcel', label: 'Parcel on\nBike', emoji: '📦', serviceType: 'PARCEL' },
+  { id: 'auto', label: 'Auto', emoji: '🛺', serviceType: 'AUTO' },
+  { id: 'cab', label: 'Cab\nEconomy', emoji: '🚗', serviceType: 'CAB' },
+  { id: 'bike', label: 'Bike', emoji: '🏍️', serviceType: 'BIKE' },
+];
 
 const CustomerHomeScreen = ({ navigation }) => {
-  const [pickup, setPickup] = useState('');
-  const [destination, setDestination] = useState('');
+  const [currentLocation, setCurrentLocation] = useState(DEFAULT_LOCATION);
+  const [locating, setLocating] = useState(true);
 
-  const sampleLocation = { latitude: 12.9716, longitude: 77.5946 };
-  const sampleDestination = destination ? { latitude: 12.9352, longitude: 77.6245 } : null;
+  useEffect(() => {
+    (async () => {
+      try {
+        const location = await getCurrentLocation();
+        setCurrentLocation(location);
+      } catch (error) {
+        // Keep the default map center when permission is denied or unavailable.
+      } finally {
+        setLocating(false);
+      }
+    })();
+  }, []);
 
-  const handleSearchRide = () => {
-    navigation.navigate('VehicleSelection', {
-      pickup: { address: pickup || 'Current Location', ...sampleLocation },
-      destination: { address: destination || 'Destination', ...sampleDestination },
+  const goToDropLocation = serviceType => {
+    navigation.navigate('DropLocation', {
+      pickup: { address: 'Current Location', ...currentLocation },
+      serviceType,
     });
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.mapContainer}>
-        <RideMap location={sampleLocation} destination={sampleDestination} />
+        <RideMap location={currentLocation} />
+
+        {locating && (
+          <View style={styles.locatingPill}>
+            <Text style={styles.locatingText}>Fetching your location ...</Text>
+          </View>
+        )}
       </View>
 
-      <View style={styles.searchCard}>
-        <Text style={styles.greeting}>Where to today?</Text>
-
-        <View style={styles.inputBox}>
-          <View style={[styles.dot, styles.greenDot]} />
-          <TextInput
-            style={styles.input}
-            value={pickup}
-            onChangeText={setPickup}
-            placeholder="Pickup Location"
-            placeholderTextColor={colors.textSecondary}
-          />
-        </View>
-
-        <View style={styles.inputBox}>
-          <View style={[styles.dot, styles.redDot]} />
-          <TextInput
-            style={styles.input}
-            value={destination}
-            onChangeText={setDestination}
-            placeholder="Enter Destination"
-            placeholderTextColor={colors.textSecondary}
-          />
-        </View>
-
-        <TouchableOpacity style={styles.searchBtn} onPress={handleSearchRide}>
-          <Text style={styles.searchBtnText}>Find Rides</Text>
+      <View style={styles.sheet}>
+        <TouchableOpacity
+          style={styles.searchBar}
+          onPress={() => goToDropLocation()}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.searchIcon}>🔍</Text>
+          <Text style={styles.searchPlaceholder}>Where do you want to go?</Text>
         </TouchableOpacity>
 
-        <View style={styles.quickNavRow}>
-          <TouchableOpacity style={styles.quickBtn} onPress={() => navigation.navigate('RideHistory')}>
-            <Text style={styles.quickBtnText}>Ride History</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.quickBtn} onPress={() => navigation.navigate('Profile')}>
-            <Text style={styles.quickBtnText}>Profile</Text>
+        <View style={styles.exploreHeader}>
+          <Text style={styles.exploreTitle}>Explore</Text>
+          <TouchableOpacity>
+            <Text style={styles.viewAll}>View All ›</Text>
           </TouchableOpacity>
         </View>
+
+        <View style={styles.exploreRow}>
+          {EXPLORE_ITEMS.map(item => (
+            <TouchableOpacity
+              key={item.id}
+              style={styles.exploreItem}
+              onPress={() => goToDropLocation(item.serviceType)}
+              activeOpacity={0.8}
+            >
+              <View style={styles.exploreIconBox}>
+                <Text style={styles.exploreEmoji}>{item.emoji}</Text>
+              </View>
+              <Text style={styles.exploreLabel}>{item.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <Text style={styles.brandFooter}>#goRidex</Text>
       </View>
     </SafeAreaView>
   );
@@ -80,7 +102,27 @@ const styles = StyleSheet.create({
   mapContainer: {
     flex: 1,
   },
-  searchCard: {
+  locatingPill: {
+    position: 'absolute',
+    top: 16,
+    left: 16,
+    right: 16,
+    backgroundColor: colors.white,
+    borderRadius: 24,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+  },
+  locatingText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  sheet: {
     backgroundColor: colors.white,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
@@ -91,68 +133,72 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 5,
   },
-  greeting: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: colors.text,
-    marginBottom: 16,
-  },
-  inputBox: {
+  searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.input,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginBottom: 10,
-  },
-  dot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginRight: 12,
-  },
-  greenDot: {
-    backgroundColor: '#16A34A',
-  },
-  redDot: {
-    backgroundColor: '#DC2626',
-  },
-  input: {
-    flex: 1,
-    fontSize: 15,
-    color: colors.text,
-    fontWeight: '600',
-  },
-  searchBtn: {
-    backgroundColor: colors.primary,
-    paddingVertical: 14,
     borderRadius: 14,
-    alignItems: 'center',
-    marginTop: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 20,
   },
-  searchBtnText: {
-    color: colors.white,
-    fontWeight: '800',
+  searchIcon: {
     fontSize: 16,
+    marginRight: 10,
   },
-  quickNavRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 14,
-  },
-  quickBtn: {
-    flex: 1,
-    backgroundColor: colors.input,
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginHorizontal: 4,
-  },
-  quickBtnText: {
-    fontSize: 13,
+  searchPlaceholder: {
+    fontSize: 15,
     fontWeight: '700',
     color: colors.text,
+  },
+  exploreHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  exploreTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  viewAll: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.textSecondary,
+  },
+  exploreRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  exploreItem: {
+    alignItems: 'center',
+    width: '23%',
+  },
+  exploreIconBox: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: colors.input,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  exploreEmoji: {
+    fontSize: 24,
+  },
+  exploreLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.text,
+    textAlign: 'center',
+  },
+  brandFooter: {
+    textAlign: 'center',
+    marginTop: 22,
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.borderStrong,
   },
 });
 

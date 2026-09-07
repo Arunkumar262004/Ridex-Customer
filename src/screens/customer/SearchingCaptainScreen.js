@@ -31,7 +31,7 @@ const SearchingCaptainScreen = ({ navigation, route }) => {
 
         <TouchableOpacity
           style={styles.cancelBtn}
-          onPress={() => navigation.navigate('CustomerHome')}
+          onPress={() => navigation.navigate('MainTabs', { screen: 'Ride' })}
         >
           <Text style={styles.cancelText}>Cancel Booking</Text>
         </TouchableOpacity>

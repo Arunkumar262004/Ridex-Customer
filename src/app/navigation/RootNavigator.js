@@ -7,6 +7,7 @@ import AuthNavigator from './AuthNavigator';
 import CustomerNavigator from './CustomerNavigator';
 import {setAuth, setInitialized} from '../store/slices/authSlice';
 import {getAuthData} from '../../utils/storage';
+import {setAuthToken} from '../../services/api/axios';
 import colors from '../../constants/colors';
 
 const RootNavigator = () => {
@@ -22,6 +23,8 @@ const RootNavigator = () => {
     try {
       const authData = await getAuthData();
       if (authData?.token && authData?.user) {
+        setAuthToken(authData.token);
+
         dispatch(
           setAuth({
             token: authData.token,

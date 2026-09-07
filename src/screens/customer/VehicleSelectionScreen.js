@@ -1,98 +1,174 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
-  Alert,
+  TouchableOpacity,
   SafeAreaView,
 } from 'react-native';
-import VehicleCard from '../../components/vehicle/VehicleCard';
-import AppButton from '../../components/common/AppButton';
+import RideMap from '../../components/map/RideMap';
 import colors from '../../constants/colors';
 import { getVehicleTypes } from '../../services/api/rideApi';
 
-const DEFAULT_VEHICLES = [
-  { id: '1', name: 'Bike Taxi', description: 'Fastest & budget friendly', baseFare: 25, perKm: 10, type: 'bike' },
-  { id: '2', name: 'Auto Express', description: 'Hassle-free auto ride', baseFare: 40, perKm: 15, type: 'auto' },
-  { id: '3', name: 'Cab Comfort', description: 'Air-conditioned comfort', baseFare: 80, perKm: 22, type: 'cab' },
+const DEFAULT_RIDE_OPTIONS = [
+  { id: 'bike', name: 'Bike', description: 'Quick Bike rides', emoji: '🏍️', baseFare: 26, etaMinutes: 4 },
+  { id: 'auto', name: 'Auto', description: 'Auto rides', emoji: '🛺', baseFare: 40, etaMinutes: 2, tag: 'FASTEST' },
+  { id: 'auto-priority', name: 'Auto Priority', description: 'Priority pickup, no waiting', emoji: '⚡', baseFare: 60, etaMinutes: 2 },
+  { id: 'cab-economy', name: 'Cab Economy', description: 'Affordable AC cabs', emoji: '🚗', baseFare: 90, etaMinutes: 2 },
+  { id: 'scooty', name: 'Scooty', description: 'Self-ride scooters', emoji: '🛵', baseFare: 31, etaMinutes: 4 },
 ];
+
+const buildNearbyCaptains = pickup => {
+  if (!pickup) {
+    return [];
+  }
+
+  const offsets = [
+    [-0.012, -0.006], [-0.006, -0.014], [0.004, -0.01],
+    [0.014, 0.006], [0.018, 0.012], [0.02, 0.016],
+  ];
+
+  return offsets.map(([latOffset, lngOffset], index) => ({
+    id: `captain-${index}`,
+    latitude: pickup.latitude + latOffset,
+    longitude: pickup.longitude + lngOffset,
+  }));
+};
+
+const formatDropTime = etaMinutes => {
+  const dropTime = new Date(Date.now() + etaMinutes * 60 * 1000);
+  return dropTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+};
 
 const VehicleSelectionScreen = ({ navigation, route }) => {
   const { pickup, destination } = route.params || {};
 
-  const [vehicles, setVehicles] = useState(DEFAULT_VEHICLES);
-  const [selectedVehicle, setSelectedVehicle] = useState(DEFAULT_VEHICLES[0]);
-  const [loading, setLoading] = useState(false);
+  const [rideOptions, setRideOptions] = useState(DEFAULT_RIDE_OPTIONS);
+  const [selectedOption, setSelectedOption] = useState(DEFAULT_RIDE_OPTIONS[0]);
+
+  const nearbyCaptains = useMemo(() => buildNearbyCaptains(pickup), [pickup]);
 
   useEffect(() => {
-    loadVehicles();
+    (async () => {
+      try {
+        const response = await getVehicleTypes();
+        const apiVehicles = response?.data;
+
+        if (apiVehicles?.length) {
+          const merged = apiVehicles.map((vehicle, index) => ({
+            ...DEFAULT_RIDE_OPTIONS[index % DEFAULT_RIDE_OPTIONS.length],
+            ...vehicle,
+            id: vehicle._id || vehicle.id,
+          }));
+
+          setRideOptions(merged);
+          setSelectedOption(merged[0]);
+        }
+      } catch (error) {
+        // Keep the default ride options when the vehicle-types API is unavailable.
+      }
+    })();
   }, []);
 
-  const loadVehicles = async () => {
-    try {
-      setLoading(true);
-      const response = await getVehicleTypes();
-      if (response && response.data && response.data.length > 0) {
-        setVehicles(response.data);
-        setSelectedVehicle(response.data[0]);
-      }
-    } catch (error) {
-      console.log('Using default vehicle list');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleContinue = () => {
-    if (!selectedVehicle) {
-      Alert.alert('Select vehicle', 'Please select a vehicle type.');
+  const handleBook = () => {
+    if (!selectedOption) {
       return;
     }
 
-    const estimatedFare = Math.round(selectedVehicle.baseFare + (selectedVehicle.perKm * 6.5));
-
-    navigation.navigate('FareEstimate', {
+    navigation.navigate('ConfirmPickup', {
       pickup,
       destination,
-      vehicle: selectedVehicle,
+      vehicle: selectedOption,
       fareDetails: {
-        vehicleName: selectedVehicle.name,
-        baseFare: selectedVehicle.baseFare,
-        distanceFare: selectedVehicle.perKm * 6.5,
-        tax: 15,
-        total: estimatedFare,
-        estimatedTime: '3-5 mins away',
+        vehicleName: selectedOption.name,
+        total: selectedOption.baseFare,
+        estimatedTime: `${selectedOption.etaMinutes} mins away`,
       },
     });
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Choose your ride</Text>
-        <Text style={styles.subtitle}>Select the option that suits your travel</Text>
+      <View style={styles.mapContainer}>
+        <RideMap
+          location={pickup}
+          destination={destination}
+          nearbyCaptains={nearbyCaptains}
+        />
+
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+          <Text style={styles.backIcon}>←</Text>
+        </TouchableOpacity>
+
+        <View style={styles.addressOverlay}>
+          <View style={styles.addressPill}>
+            <Text style={styles.addressText} numberOfLines={1}>
+              {pickup?.address || 'Pickup location'}
+            </Text>
+            <Text style={styles.editIcon}>✏️</Text>
+          </View>
+          <View style={styles.addressPill}>
+            <Text style={styles.addressText} numberOfLines={1}>
+              {destination?.address || 'Drop location'}
+            </Text>
+            <TouchableOpacity onPress={() => navigation.goBack()}>
+              <Text style={styles.editIcon}>✏️</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </View>
 
-      <FlatList
-        data={vehicles}
-        keyExtractor={item => item._id || item.id}
-        contentContainerStyle={styles.list}
-        renderItem={({ item }) => (
-          <VehicleCard
-            vehicle={item}
-            selected={selectedVehicle && (selectedVehicle.id === item.id || selectedVehicle._id === item._id)}
-            onPress={() => setSelectedVehicle(item)}
-          />
-        )}
-      />
+      <View style={styles.sheet}>
+        <FlatList
+          data={rideOptions}
+          keyExtractor={item => item.id}
+          renderItem={({ item }) => {
+            const isSelected = selectedOption?.id === item.id;
 
-      <View style={styles.footer}>
-        <AppButton
-          title={`Confirm ${selectedVehicle ? selectedVehicle.name : 'Ride'}`}
-          onPress={handleContinue}
-          disabled={!selectedVehicle}
+            return (
+              <TouchableOpacity
+                style={[styles.rideRow, isSelected && styles.rideRowSelected]}
+                onPress={() => setSelectedOption(item)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.rideEmoji}>{item.emoji}</Text>
+
+                <View style={styles.rideDetails}>
+                  <View style={styles.rideNameRow}>
+                    <Text style={styles.rideName}>{item.name}</Text>
+                    {item.tag && (
+                      <View style={styles.tagPill}>
+                        <Text style={styles.tagText}>{item.tag}</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={styles.rideSubtitle}>
+                    {item.etaMinutes} mins • Drop {formatDropTime(item.etaMinutes)}
+                  </Text>
+                </View>
+
+                <Text style={styles.ridePrice}>₹{item.baseFare}</Text>
+              </TouchableOpacity>
+            );
+          }}
         />
+
+        <View style={styles.paymentRow}>
+          <TouchableOpacity style={styles.paymentItem}>
+            <Text style={styles.paymentText}>💵 Cash ›</Text>
+          </TouchableOpacity>
+          <View style={styles.paymentDivider} />
+          <TouchableOpacity style={styles.paymentItem}>
+            <Text style={styles.paymentText}>% Offers ›</Text>
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity style={styles.bookButton} onPress={handleBook}>
+          <Text style={styles.bookButtonText}>
+            Book {selectedOption ? selectedOption.name : 'Ride'}
+          </Text>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
@@ -103,30 +179,144 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  header: {
+  mapContainer: {
+    flex: 1,
+  },
+  backButton: {
+    position: 'absolute',
+    top: 16,
+    left: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: colors.white,
-    padding: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
+  },
+  backIcon: {
+    fontSize: 18,
+    color: colors.text,
+  },
+  addressOverlay: {
+    position: 'absolute',
+    top: 16,
+    left: 66,
+    right: 16,
+  },
+  addressPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.white,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    marginBottom: 8,
+    elevation: 3,
+  },
+  addressText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.text,
+    marginRight: 8,
+  },
+  editIcon: {
+    fontSize: 12,
+  },
+  sheet: {
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 20,
+    elevation: 10,
+    maxHeight: '58%',
+  },
+  rideRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderColor: colors.border,
   },
-  title: {
-    fontSize: 22,
+  rideRowSelected: {
+    borderColor: colors.primary,
+    borderWidth: 1.5,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    marginBottom: 4,
+  },
+  rideEmoji: {
+    fontSize: 28,
+    width: 44,
+  },
+  rideDetails: {
+    flex: 1,
+    marginLeft: 8,
+  },
+  rideNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  rideName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  tagPill: {
+    backgroundColor: colors.surface,
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginLeft: 8,
+  },
+  tagText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: colors.primary,
+  },
+  rideSubtitle: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 3,
+  },
+  ridePrice: {
+    fontSize: 15,
     fontWeight: '800',
     color: colors.text,
   },
-  subtitle: {
-    marginTop: 4,
+  paymentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+  },
+  paymentItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  paymentDivider: {
+    width: 1,
+    height: 20,
+    backgroundColor: colors.border,
+  },
+  paymentText: {
     fontSize: 13,
-    color: colors.textSecondary,
+    fontWeight: '700',
+    color: colors.text,
   },
-  list: {
-    padding: 20,
+  bookButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 16,
+    paddingVertical: 16,
+    alignItems: 'center',
   },
-  footer: {
-    padding: 20,
-    backgroundColor: colors.white,
-    borderTopWidth: 1,
-    borderColor: colors.border,
+  bookButtonText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.white,
   },
 });
 

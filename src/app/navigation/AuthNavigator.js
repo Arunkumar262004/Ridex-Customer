@@ -4,30 +4,27 @@ import {
   createNativeStackNavigator,
 } from '@react-navigation/native-stack';
 
-import LoginScreen from '../../screens/auth/LoginScreen';
-import RegisterScreen from '../../screens/auth/RegisterScreen';
+import MobileNumberScreen from '../../screens/auth/MobileNumberScreen';
+import OtpScreen from '../../screens/auth/OtpScreen';
 
 const Stack = createNativeStackNavigator();
 
 const AuthNavigator = () => {
   return (
     <Stack.Navigator
-      initialRouteName="Login"
+      initialRouteName="MobileNumber"
+      screenOptions={{
+        headerShown: false,
+      }}
     >
       <Stack.Screen
-        name="Login"
-        component={LoginScreen}
-        options={{
-          headerShown: false,
-        }}
+        name="MobileNumber"
+        component={MobileNumberScreen}
       />
 
       <Stack.Screen
-        name="Register"
-        component={RegisterScreen}
-        options={{
-          title: 'Create Account',
-        }}
+        name="Otp"
+        component={OtpScreen}
       />
     </Stack.Navigator>
   );

@@ -1,45 +1,22 @@
 import api from './axios';
 
-const loginUser = async ({email, password}) => {
-  const response = await api.post('/auth/login', {
-    email,
-    password,
-  });
-
+const sendOtp = async phone => {
+  const response = await api.post('/auth/send-otp', {phone});
   return response.data;
 };
 
-const registerUser = async ({
-  name,
-  email,
-  phone,
-  password,
-}) => {
-  const response = await api.post('/auth/register', {
-    name,
-    email,
-    phone,
-    password,
-  });
-
+const verifyOtp = async ({phone, otp}) => {
+  const response = await api.post('/auth/verify-otp', {phone, otp});
   return response.data;
 };
 
-const getCurrentUser = async () => {
-  const response = await api.get('/auth/me');
-
-  return response.data;
-};
-
-const logoutUser = async () => {
-  const response = await api.post('/auth/logout');
-
+const completeProfile = async payload => {
+  const response = await api.post('/auth/complete-profile', payload);
   return response.data;
 };
 
 export {
-  loginUser,
-  registerUser,
-  getCurrentUser,
-  logoutUser,
+  sendOtp,
+  verifyOtp,
+  completeProfile,
 };

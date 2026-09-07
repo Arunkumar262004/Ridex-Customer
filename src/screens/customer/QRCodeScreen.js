@@ -9,6 +9,7 @@ import {
 import QRCode from 'react-native-qrcode-svg';
 import io from 'socket.io-client';
 import { getDynamicQrToken } from '../../services/api/rideApi';
+import {SOCKET_URL} from '../../constants/config';
 
 const QRCodeScreen = ({ route, navigation }) => {
   const { rideId } = route.params || {};
@@ -48,7 +49,7 @@ const QRCodeScreen = ({ route, navigation }) => {
 
     let socket;
     try {
-      socket = io('http://10.0.2.2:5000');
+      socket = io(SOCKET_URL);
       if (rideId) {
         socket.emit('join_ride_room', rideId);
         socket.on('ride_started', (updatedRide) => {
@@ -74,7 +75,7 @@ const QRCodeScreen = ({ route, navigation }) => {
 
       <View style={styles.qrCard}>
         {loading ? (
-          <ActivityIndicator size="large" color="#2563EB" />
+          <ActivityIndicator size="large" color="#FF6600" />
         ) : (
           qrPayload ? (
             <QRCode
@@ -108,7 +109,7 @@ const QRCodeScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#FFF8F3',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
@@ -116,12 +117,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#FFFFFF',
+    color: '#0F172A',
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: '#64748B',
     textAlign: 'center',
     marginBottom: 32,
   },
@@ -153,11 +154,11 @@ const styles = StyleSheet.create({
   },
   countdownText: {
     fontWeight: '800',
-    color: '#2563EB',
+    color: '#FF6600',
   },
   closeButton: {
     marginTop: 32,
-    backgroundColor: '#334155',
+    backgroundColor: '#FF6600',
     paddingHorizontal: 32,
     paddingVertical: 12,
     borderRadius: 12,

@@ -1,21 +1,34 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { useSelector } from 'react-redux';
 
-import CustomerHomeScreen from '../../screens/customer/CustomerHomeScreen';
+import CustomerTabs from './CustomerTabs';
+import ProfileSetupScreen from '../../screens/auth/ProfileSetupScreen';
+import DropLocationScreen from '../../screens/customer/DropLocationScreen';
 import VehicleSelectionScreen from '../../screens/customer/VehicleSelectionScreen';
+import ConfirmPickupScreen from '../../screens/customer/ConfirmPickupScreen';
 import SearchingCaptainScreen from '../../screens/customer/SearchingCaptainScreen';
 import QRCodeScreen from '../../screens/customer/QRCodeScreen';
 import ActiveRideScreen from '../../screens/customer/ActiveRideScreen';
 import RideHistoryScreen from '../../screens/customer/RideHistoryScreen';
-import ProfileScreen from '../../screens/customer/ProfileScreen';
+import WalletScreen from '../../screens/customer/WalletScreen';
 
 const Stack = createNativeStackNavigator();
 
 const CustomerNavigator = () => {
+  const user = useSelector(state => state.auth.user);
+  const needsProfileSetup = !user?.name;
+
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="CustomerHome" component={CustomerHomeScreen} />
+    <Stack.Navigator
+      screenOptions={{ headerShown: false }}
+      initialRouteName={needsProfileSetup ? 'ProfileSetup' : 'MainTabs'}
+    >
+      <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} />
+      <Stack.Screen name="MainTabs" component={CustomerTabs} />
+      <Stack.Screen name="DropLocation" component={DropLocationScreen} />
       <Stack.Screen name="VehicleSelection" component={VehicleSelectionScreen} />
+      <Stack.Screen name="ConfirmPickup" component={ConfirmPickupScreen} />
       <Stack.Screen name="SearchingCaptain" component={SearchingCaptainScreen} />
       <Stack.Screen
         name="QRCodeScreen"
@@ -24,7 +37,7 @@ const CustomerNavigator = () => {
       />
       <Stack.Screen name="ActiveRideScreen" component={ActiveRideScreen} />
       <Stack.Screen name="RideHistory" component={RideHistoryScreen} />
-      <Stack.Screen name="Profile" component={ProfileScreen} />
+      <Stack.Screen name="Wallet" component={WalletScreen} />
     </Stack.Navigator>
   );
 };

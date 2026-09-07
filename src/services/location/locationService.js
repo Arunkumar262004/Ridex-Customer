@@ -49,7 +49,28 @@ const getCurrentLocation = async () => {
   });
 };
 
+const getDistanceInMeters = (from, to) => {
+  const EARTH_RADIUS_METERS = 6371000;
+
+  const toRadians = degrees => (degrees * Math.PI) / 180;
+
+  const deltaLat = toRadians(to.latitude - from.latitude);
+  const deltaLng = toRadians(to.longitude - from.longitude);
+
+  const a =
+    Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
+    Math.cos(toRadians(from.latitude)) *
+      Math.cos(toRadians(to.latitude)) *
+      Math.sin(deltaLng / 2) *
+      Math.sin(deltaLng / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return Math.round(EARTH_RADIUS_METERS * c);
+};
+
 export {
   requestLocationPermission,
   getCurrentLocation,
+  getDistanceInMeters,
 };

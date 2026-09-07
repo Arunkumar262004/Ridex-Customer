@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView } from 'react-na
 import io from 'socket.io-client';
 import RideMap from '../../components/map/RideMap';
 import colors from '../../constants/colors';
+import {SOCKET_URL} from '../../constants/config';
 
 const CustomerActiveRideScreen = ({ route, navigation }) => {
   const { ride } = route.params || {};
@@ -20,7 +21,7 @@ const CustomerActiveRideScreen = ({ route, navigation }) => {
     // Connect to WebSocket server for real-time live location & status updates
     let socket;
     try {
-      socket = io('http://10.0.2.2:5000');
+      socket = io(SOCKET_URL);
       socket.emit('join_ride_room', rideId);
 
       // Listen for live captain GPS movement
@@ -49,7 +50,7 @@ const CustomerActiveRideScreen = ({ route, navigation }) => {
           <Text style={styles.emptyTitle}>No Active Ride Found</Text>
           <TouchableOpacity
             style={styles.homeButton}
-            onPress={() => navigation.navigate('CustomerHome')}
+            onPress={() => navigation.navigate('MainTabs', { screen: 'Ride' })}
           >
             <Text style={styles.homeButtonText}>Back to Home</Text>
           </TouchableOpacity>
@@ -125,7 +126,7 @@ const CustomerActiveRideScreen = ({ route, navigation }) => {
 
         <TouchableOpacity
           style={styles.homeButton}
-          onPress={() => navigation.navigate('CustomerHome')}
+          onPress={() => navigation.navigate('MainTabs', { screen: 'Ride' })}
         >
           <Text style={styles.homeButtonText}>Back to Home</Text>
         </TouchableOpacity>
@@ -266,15 +267,15 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   statusBlue: {
-    backgroundColor: '#DBEAFE',
-    color: '#2563EB',
+    backgroundColor: '#FFE4CC',
+    color: colors.primary,
   },
   statusGreen: {
     backgroundColor: '#DCFCE7',
     color: '#16A34A',
   },
   qrButton: {
-    backgroundColor: colors.customer,
+    backgroundColor: colors.primary,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
