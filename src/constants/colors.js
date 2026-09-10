@@ -1,15 +1,20 @@
-// Ridex brand palette — Orange (#FF6600) + White, matching the Ridex Admin panel.
-// `captain`/`customer` are small per-role accent tints used only for badges/highlights
-// that need to visually distinguish the two apps; every primary surface (buttons,
-// headers, active nav) stays on the shared orange/white brand.
+// Ridex brand palette — white surfaces with navy action buttons.
+// `navy` is the color for real, functional buttons (Continue, Book, Confirm,
+// etc). `primary` (orange) is kept only for small accents/badges/dummy
+// (non-functional placeholder) buttons — not for backgrounds or real CTAs.
+// `captain`/`customer` are small per-role accent tints used only for
+// badges/highlights that need to visually distinguish the two apps.
 const colors = {
   primary: '#FF6600',
   primaryBright: '#FF8800',
   primaryDark: '#E65C00',
   secondary: '#64748B',
 
+  navy: '#13294B',
+  navyDark: '#0B1B33',
+
   background: '#FFFFFF',
-  surface: '#FFF8F3',
+  surface: '#F8FAFC',
   white: '#FFFFFF',
   black: '#000000',
   text: '#0F172A',

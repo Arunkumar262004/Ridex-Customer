@@ -3,7 +3,12 @@ import {PermissionsAndroid, Platform} from 'react-native';
 
 const requestLocationPermission = async () => {
   if (Platform.OS !== 'android') {
-    return true;
+    return new Promise(resolve => {
+      Geolocation.requestAuthorization(
+        () => resolve(true),
+        () => resolve(false),
+      );
+    });
   }
 
   const granted = await PermissionsAndroid.request(

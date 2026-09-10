@@ -5,6 +5,7 @@ import { useSelector } from 'react-redux';
 import CustomerTabs from './CustomerTabs';
 import ProfileSetupScreen from '../../screens/auth/ProfileSetupScreen';
 import DropLocationScreen from '../../screens/customer/DropLocationScreen';
+import MapPickerScreen from '../../screens/customer/MapPickerScreen';
 import VehicleSelectionScreen from '../../screens/customer/VehicleSelectionScreen';
 import ConfirmPickupScreen from '../../screens/customer/ConfirmPickupScreen';
 import SearchingCaptainScreen from '../../screens/customer/SearchingCaptainScreen';
@@ -27,6 +28,7 @@ const CustomerNavigator = () => {
       <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} />
       <Stack.Screen name="MainTabs" component={CustomerTabs} />
       <Stack.Screen name="DropLocation" component={DropLocationScreen} />
+      <Stack.Screen name="MapPicker" component={MapPickerScreen} />
       <Stack.Screen name="VehicleSelection" component={VehicleSelectionScreen} />
       <Stack.Screen name="ConfirmPickup" component={ConfirmPickupScreen} />
       <Stack.Screen name="SearchingCaptain" component={SearchingCaptainScreen} />

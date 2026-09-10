@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -8,44 +8,45 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MapView, Camera } from 'mappls-map-react-native';
 import colors from '../../constants/colors';
-import { getDistanceInMeters } from '../../services/location/locationService';
 import { reverseGeocode } from '../../services/api/placesApi';
+import { addRecentSearch } from '../../utils/recentSearches';
 
-const ConfirmPickupScreen = ({ navigation, route }) => {
-  const { pickup, destination, vehicle, fareDetails } = route.params || {};
+const MapPickerScreen = ({ navigation, route }) => {
+  const { initialCoords, pickup, serviceType } = route.params || {};
 
-  const originalPickup = useRef(pickup);
-  const [pickupCoords, setPickupCoords] = useState({
-    latitude: pickup?.latitude ?? 12.9716,
-    longitude: pickup?.longitude ?? 77.5946,
+  const [coords, setCoords] = useState({
+    latitude: initialCoords?.latitude ?? 12.9716,
+    longitude: initialCoords?.longitude ?? 77.5946,
   });
   // Captured once so the Camera only sets the map's starting position and
   // never fights the user's own panning on subsequent renders.
   const [initialCenter] = useState([
-    pickup?.longitude ?? 77.5946,
-    pickup?.latitude ?? 12.9716,
+    initialCoords?.longitude ?? 77.5946,
+    initialCoords?.latitude ?? 12.9716,
   ]);
-  const [pickupAddress, setPickupAddress] = useState(pickup?.address || 'Selected pickup point');
-  const [distanceMeters, setDistanceMeters] = useState(0);
+  const [address, setAddress] = useState('Move the map to select a location');
+  const [resolving, setResolving] = useState(false);
 
   const handleRegionDidChange = async feature => {
     const [longitude, latitude] = feature.geometry.coordinates;
     const nextCoords = { latitude, longitude };
-    setPickupCoords(nextCoords);
-    setDistanceMeters(getDistanceInMeters(originalPickup.current, nextCoords));
+    setCoords(nextCoords);
 
+    setResolving(true);
     const resolvedAddress = await reverseGeocode(nextCoords.latitude, nextCoords.longitude);
-    if (resolvedAddress) {
-      setPickupAddress(resolvedAddress);
-    }
+    setAddress(resolvedAddress || `${nextCoords.latitude.toFixed(5)}, ${nextCoords.longitude.toFixed(5)}`);
+    setResolving(false);
   };
 
-  const handleConfirmPickup = () => {
-    navigation.navigate('SearchingCaptain', {
-      pickup: { ...pickup, ...pickupCoords, address: pickupAddress },
+  const handleConfirm = async () => {
+    const destination = { address, ...coords };
+
+    await addRecentSearch(destination);
+
+    navigation.navigate('VehicleSelection', {
+      pickup,
       destination,
-      vehicle,
-      fareDetails,
+      serviceType,
     });
   };
 
@@ -57,38 +58,25 @@ const ConfirmPickupScreen = ({ navigation, route }) => {
         </MapView>
 
         <View style={styles.centerPinContainer} pointerEvents="none">
-          <View style={styles.pickupLabel}>
-            <Text style={styles.pickupLabelText}>Pickup Point</Text>
-          </View>
           <Text style={styles.pinIcon}>📍</Text>
         </View>
 
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
-
-        {distanceMeters > 0 && (
-          <View style={styles.distanceBanner}>
-            <Text style={styles.distanceIcon}>ⓘ</Text>
-            <Text style={styles.distanceText}>
-              You are {distanceMeters} m away from your pickup
-            </Text>
-          </View>
-        )}
       </View>
 
       <View style={styles.sheet}>
-        <Text style={styles.sheetTitle}>Select a pickup point</Text>
-        <Text style={styles.sheetSubtitle}>Drag map or select from below</Text>
+        <Text style={styles.sheetTitle}>Drop pin on the map</Text>
 
         <View style={styles.addressBox}>
           <Text style={styles.addressText} numberOfLines={2}>
-            {pickupAddress}
+            {resolving ? 'Finding address...' : address}
           </Text>
         </View>
 
-        <TouchableOpacity style={styles.confirmButton} onPress={handleConfirmPickup}>
-          <Text style={styles.confirmButtonText}>Confirm pickup</Text>
+        <TouchableOpacity style={styles.confirmButton} onPress={handleConfirm}>
+          <Text style={styles.confirmButtonText}>Confirm location</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -110,21 +98,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: '50%',
     left: '50%',
-    marginLeft: -20,
-    marginTop: -56,
-    alignItems: 'center',
-  },
-  pickupLabel: {
-    backgroundColor: colors.success,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    marginBottom: 4,
-  },
-  pickupLabelText: {
-    color: colors.white,
-    fontSize: 13,
-    fontWeight: '700',
+    marginLeft: -16,
+    marginTop: -32,
   },
   pinIcon: {
     fontSize: 32,
@@ -145,29 +120,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: colors.text,
   },
-  distanceBanner: {
-    position: 'absolute',
-    bottom: 20,
-    left: 16,
-    right: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF7E0',
-    borderColor: colors.warning,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  distanceIcon: {
-    color: colors.warning,
-    marginRight: 8,
-  },
-  distanceText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.text,
-  },
   sheet: {
     backgroundColor: colors.white,
     borderTopLeftRadius: 24,
@@ -179,16 +131,11 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '800',
     color: colors.text,
-  },
-  sheetSubtitle: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    marginTop: 4,
     marginBottom: 16,
   },
   addressBox: {
     borderWidth: 1,
-    borderColor: colors.success,
+    borderColor: colors.danger,
     borderRadius: 12,
     padding: 14,
     marginBottom: 20,
@@ -211,4 +158,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ConfirmPickupScreen;
+export default MapPickerScreen;

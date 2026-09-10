@@ -13,6 +13,7 @@ import {
 import {useDispatch} from 'react-redux';
 
 import colors from '../../constants/colors';
+import SketchBackdrop from '../../components/common/SketchBackdrop';
 
 import {sendOtp, verifyOtp} from '../../services/api/authApi';
 import {loginSuccess} from '../../app/store/slices/authSlice';
@@ -139,6 +140,8 @@ const OtpScreen = ({navigation, route}) => {
 
   return (
     <View style={styles.container}>
+      <SketchBackdrop />
+
       <Text style={styles.heading}>Verify your number</Text>
 
       <Text style={styles.description}>
@@ -191,7 +194,7 @@ const OtpScreen = ({navigation, route}) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: colors.background,
     padding: 24,
     paddingTop: 80,
   },

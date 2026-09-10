@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import io from 'socket.io-client';
 import RideMap from '../../components/map/RideMap';
 import colors from '../../constants/colors';
@@ -275,7 +276,7 @@ const styles = StyleSheet.create({
     color: '#16A34A',
   },
   qrButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.navy,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',

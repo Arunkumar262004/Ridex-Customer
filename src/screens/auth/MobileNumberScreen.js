@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 
 import AppButton from '../../components/common/AppButton';
+import SketchBackdrop from '../../components/common/SketchBackdrop';
 import colors from '../../constants/colors';
 
 import {sendOtp} from '../../services/api/authApi';
@@ -49,6 +50,8 @@ const MobileNumberScreen = ({navigation}) => {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
+      <SketchBackdrop />
+
       <View style={styles.content}>
         <View style={styles.logoContainer}>
           <Text style={styles.logo}>RIDEX</Text>
@@ -91,7 +94,7 @@ const MobileNumberScreen = ({navigation}) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: colors.background,
   },
 
   content: {

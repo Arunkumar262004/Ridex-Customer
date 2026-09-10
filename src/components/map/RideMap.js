@@ -1,106 +1,18 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet } from 'react-native';
-import { WebView } from 'react-native-webview';
+import React, { useEffect, useMemo, useRef } from 'react';
+import { StyleSheet, View, TouchableOpacity } from 'react-native';
+import {
+  MapView,
+  Camera,
+  PointAnnotation,
+  UserLocation,
+  ShapeSource,
+  LineLayer,
+  requestAndroidLocationPermissions,
+} from 'mappls-map-react-native';
+import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
+import colors from '../../constants/colors';
 
-// Free, no-API-key map: Leaflet.js rendering OpenStreetMap tiles inside a
-// WebView, instead of react-native-maps (which requires a billed Google
-// Maps API key just to display a map).
-const LEAFLET_HTML = `<!DOCTYPE html>
-<html>
-<head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <style>
-    html, body, #map { height: 100%; margin: 0; padding: 0; background: #eef1f4; }
-  </style>
-</head>
-<body>
-  <div id="map"></div>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script>
-    var map = L.map('map', { zoomControl: false, attributionControl: false }).setView([12.9716, 77.5946], 15);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-
-    function dotIcon(color) {
-      return L.divIcon({
-        className: '',
-        html: '<div style="width:16px;height:16px;border-radius:8px;background:' + color + ';border:3px solid white;box-shadow:0 0 4px rgba(0,0,0,0.4)"></div>',
-        iconSize: [16, 16],
-      });
-    }
-    var pickupIcon = dotIcon('#16A34A');
-    var dropIcon = dotIcon('#DC2626');
-    var emojiIcon = function (emoji, size) {
-      return L.divIcon({ className: '', html: '<div style="font-size:' + size + 'px;line-height:1">' + emoji + '</div>', iconSize: [size, size] });
-    };
-    var captainIcon = emojiIcon('🏍️', 26);
-    var nearbyIcon = emojiIcon('🏍️', 20);
-
-    var markers = { pickup: null, destination: null, captain: null, nearby: [] };
-    var routeLine = null;
-
-    function clearNearby() {
-      markers.nearby.forEach(function (m) { map.removeLayer(m); });
-      markers.nearby = [];
-    }
-
-    function render(data) {
-      var bounds = [];
-
-      if (data.pickup) {
-        var p = [data.pickup.latitude, data.pickup.longitude];
-        if (markers.pickup) { markers.pickup.setLatLng(p); } else { markers.pickup = L.marker(p, { icon: pickupIcon }).addTo(map); }
-        bounds.push(p);
-      }
-
-      if (data.destination) {
-        var d = [data.destination.latitude, data.destination.longitude];
-        if (markers.destination) { markers.destination.setLatLng(d); } else { markers.destination = L.marker(d, { icon: dropIcon }).addTo(map); }
-        bounds.push(d);
-      } else if (markers.destination) {
-        map.removeLayer(markers.destination);
-        markers.destination = null;
-      }
-
-      if (data.captain) {
-        var c = [data.captain.latitude, data.captain.longitude];
-        if (markers.captain) { markers.captain.setLatLng(c); } else { markers.captain = L.marker(c, { icon: captainIcon }).addTo(map); }
-        bounds.push(c);
-      } else if (markers.captain) {
-        map.removeLayer(markers.captain);
-        markers.captain = null;
-      }
-
-      if (data.nearby) {
-        clearNearby();
-        data.nearby.forEach(function (n) {
-          markers.nearby.push(L.marker([n.latitude, n.longitude], { icon: nearbyIcon }).addTo(map));
-        });
-      }
-
-      if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
-      if (data.pickup && data.destination) {
-        var line = [[data.pickup.latitude, data.pickup.longitude]];
-        if (data.captain) line.push([data.captain.latitude, data.captain.longitude]);
-        line.push([data.destination.latitude, data.destination.longitude]);
-        routeLine = L.polyline(line, { color: '#FF6600', weight: 4 }).addTo(map);
-      }
-
-      if (bounds.length > 1) {
-        map.fitBounds(bounds, { padding: [40, 40] });
-      } else if (bounds.length === 1) {
-        map.setView(bounds[0], 15);
-      }
-    }
-
-    function handleMessage(event) {
-      render(JSON.parse(event.data));
-    }
-    document.addEventListener('message', handleMessage);
-    window.addEventListener('message', handleMessage);
-  </script>
-</body>
-</html>`;
+const DEFAULT_COORDS = { latitude: 12.9716, longitude: 77.5946 };
 
 const toCoords = point => {
   if (!point) {
@@ -117,43 +29,220 @@ const toCoords = point => {
   return { latitude, longitude };
 };
 
-const RideMap = ({ location, destination, captainLocation, nearbyCaptains }) => {
-  const webviewRef = useRef(null);
-  const [pageReady, setPageReady] = useState(false);
+// Mappls (like Mapbox) expects coordinates as [longitude, latitude] arrays,
+// the opposite order from react-native-maps' {latitude, longitude} objects.
+const toLngLat = coords => (coords ? [coords.longitude, coords.latitude] : null);
 
-  const payload = useMemo(
-    () =>
-      JSON.stringify({
-        pickup: toCoords(location),
-        destination: toCoords(destination),
-        captain: toCoords(captainLocation),
-        nearby: (nearbyCaptains || []).map(toCoords).filter(Boolean),
-      }),
-    [location, destination, captainLocation, nearbyCaptains],
+const VEHICLE_ICON_BY_TYPE = {
+  BIKE: 'motorbike',
+  AUTO: 'rickshaw',
+  CAB: 'car',
+  PARCEL: 'package-variant-closed',
+};
+
+const RideMap = ({ location, destination, captainLocation, nearbyCaptains, showRecenterButton = true }) => {
+  const cameraRef = useRef(null);
+  // Every value below is memoized off the *primitive* lat/lng, not the raw
+  // `location`/`destination` prop objects. Those objects get a brand new
+  // reference on every parent re-render (a captain's live GPS ping, a list
+  // re-render, a timer tick, anything), and the Camera below treats a new
+  // `centerCoordinate` reference as "move the map here" - so without this,
+  // the camera snaps back to pickup on almost every render, fighting any
+  // panning the customer does. Memoizing on the numbers means the camera
+  // only recenters when the coordinate actually changes value.
+  const pickupCoords = useMemo(() => {
+    const coords = toCoords(location);
+    return coords || DEFAULT_COORDS;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location?.latitude, location?.longitude, location?.lat, location?.lng]);
+
+  const dropoffCoords = useMemo(
+    () => toCoords(destination),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [destination?.latitude, destination?.longitude, destination?.lat, destination?.lng],
   );
 
+  const captainCoords = useMemo(
+    () => toCoords(captainLocation),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [captainLocation?.latitude, captainLocation?.longitude, captainLocation?.lat, captainLocation?.lng],
+  );
+
+  const nearbyKey = (nearbyCaptains || [])
+    .map(c => `${c?.id ?? ''}:${c?.latitude ?? c?.lat}:${c?.longitude ?? c?.lng}:${c?.icon ?? c?.vehicleType ?? ''}`)
+    .join('|');
+  const nearby = useMemo(
+    () =>
+      (nearbyCaptains || [])
+        .map(c => ({ ...toCoords(c), id: c.id, vehicleType: c.vehicleType, icon: c.icon }))
+        .filter(c => c.latitude != null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [nearbyKey],
+  );
+
+  const pickupCenter = useMemo(() => toLngLat(pickupCoords), [pickupCoords]);
+
   useEffect(() => {
-    if (pageReady) {
-      webviewRef.current?.postMessage(payload);
-    }
-  }, [payload, pageReady]);
+    requestAndroidLocationPermissions().catch(() => {});
+  }, []);
+
+  // The camera no longer auto-follows pickup on every render (see above),
+  // so give the customer an explicit way to snap back to it - the same
+  // "locate me" affordance most ride-hailing map screens offer.
+  const handleRecenter = () => {
+    cameraRef.current?.moveTo(pickupCenter, 500);
+  };
+
+  const routeStart = captainCoords || pickupCoords;
+  const routeLine =
+    dropoffCoords && routeStart
+      ? {
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'LineString',
+            coordinates: [toLngLat(routeStart), toLngLat(dropoffCoords)],
+          },
+        }
+      : null;
 
   return (
-    <WebView
-      ref={webviewRef}
-      style={styles.map}
-      originWhitelist={['*']}
-      source={{ html: LEAFLET_HTML }}
-      onLoadEnd={() => setPageReady(true)}
-      javaScriptEnabled
-      domStorageEnabled
-    />
+    <View style={styles.wrap}>
+      <MapView style={styles.map}>
+        <Camera ref={cameraRef} zoomLevel={13} centerCoordinate={pickupCenter} />
+
+        <UserLocation visible />
+
+        <PointAnnotation
+          id="pickup"
+          coordinate={pickupCenter}
+          title="Pickup Location"
+          snippet={location?.address || 'Pickup Point'}
+        >
+          <View style={[styles.pin, styles.pinPickup]} />
+        </PointAnnotation>
+
+        {captainCoords && (
+          <PointAnnotation
+            id="captain"
+            coordinate={toLngLat(captainCoords)}
+            title="Captain Live Location"
+            snippet="Driver is en route"
+          >
+            <View style={[styles.vehicleMarker, styles.vehicleMarkerCaptain]}>
+              <MaterialDesignIcons name="motorbike" size={16} color={colors.white} />
+            </View>
+          </PointAnnotation>
+        )}
+
+        {nearby.map((coords, index) => (
+          <PointAnnotation
+            key={coords.id ?? `nearby-${index}`}
+            id={`nearby-${coords.id ?? index}`}
+            coordinate={toLngLat(coords)}
+            title="Nearby Captain"
+          >
+            <View style={[styles.vehicleMarker, styles.vehicleMarkerNearby]}>
+              <MaterialDesignIcons
+                name={coords.icon || VEHICLE_ICON_BY_TYPE[coords.vehicleType] || 'motorbike'}
+                size={14}
+                color={colors.white}
+              />
+            </View>
+          </PointAnnotation>
+        ))}
+
+        {dropoffCoords && (
+          <PointAnnotation
+            id="dropoff"
+            coordinate={toLngLat(dropoffCoords)}
+            title="Destination"
+            snippet={destination?.address || 'Destination'}
+          >
+            <View style={[styles.pin, styles.pinDropoff]} />
+          </PointAnnotation>
+        )}
+
+        {routeLine && (
+          <ShapeSource id="routeLineSource" shape={routeLine}>
+            <LineLayer
+              id="routeLineLayer"
+              style={{ lineColor: '#FF6600', lineWidth: 4 }}
+            />
+          </ShapeSource>
+        )}
+      </MapView>
+
+      {showRecenterButton && (
+        <TouchableOpacity style={styles.recenterButton} onPress={handleRecenter} activeOpacity={0.8}>
+          <MaterialDesignIcons name="crosshairs-gps" size={20} color={colors.navy} />
+        </TouchableOpacity>
+      )}
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  wrap: {
+    flex: 1,
+  },
   map: {
     flex: 1,
+  },
+  recenterButton: {
+    position: 'absolute',
+    right: 16,
+    bottom: 16,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+  },
+  pin: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  pinPickup: {
+    backgroundColor: '#16A34A',
+  },
+  pinDropoff: {
+    backgroundColor: '#DC2626',
+  },
+  // Nearby/live captains render as small vehicle-icon badges (not bare
+  // dots) so they read as actual partners on the map, matching how other
+  // ride apps show clustered rider icons near the pickup point.
+  vehicleMarker: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+  },
+  vehicleMarkerCaptain: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: colors.navy,
+  },
+  vehicleMarkerNearby: {
+    backgroundColor: colors.primary,
   },
 });
 

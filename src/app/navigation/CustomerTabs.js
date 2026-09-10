@@ -4,14 +4,12 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 
 import CustomerHomeScreen from '../../screens/customer/CustomerHomeScreen';
 import AllServicesScreen from '../../screens/customer/AllServicesScreen';
-import TravelScreen from '../../screens/customer/TravelScreen';
 import ProfileScreen from '../../screens/customer/ProfileScreen';
 import colors from '../../constants/colors';
 
 const TAB_ICONS = {
   Ride: '🏠',
   AllServices: '➤',
-  Travel: '🏝️',
   Profile: '👤',
 };
 
@@ -37,7 +35,6 @@ const CustomerTabs = () => {
         component={AllServicesScreen}
         options={{ title: 'All Services' }}
       />
-      <Tab.Screen name="Travel" component={TravelScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );

@@ -5,6 +5,7 @@ import {useDispatch, useSelector} from 'react-redux';
 
 import AuthNavigator from './AuthNavigator';
 import CustomerNavigator from './CustomerNavigator';
+import LocationGate from '../../components/location/LocationGate';
 import {setAuth, setInitialized} from '../store/slices/authSlice';
 import {getAuthData} from '../../utils/storage';
 import {setAuthToken} from '../../services/api/axios';
@@ -55,7 +56,13 @@ const RootNavigator = () => {
 
     // Enforce role check: Customer app only serves CUSTOMER role
     if (user?.role === 'CUSTOMER') {
-      return <CustomerNavigator />;
+      // Riding requires a live device location, so gate the whole customer
+      // flow behind a location check/prompt before it's reachable.
+      return (
+        <LocationGate>
+          <CustomerNavigator />
+        </LocationGate>
+      );
     }
 
     // Non-customer roles default to Auth

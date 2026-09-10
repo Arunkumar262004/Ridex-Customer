@@ -1,6 +1,7 @@
 package com.ridexcustomer
 
 import android.app.Application
+import androidx.appcompat.app.AppCompatDelegate
 import com.facebook.react.PackageList
 import com.facebook.react.ReactApplication
 import com.facebook.react.ReactHost
@@ -21,6 +22,11 @@ class MainApplication : Application(), ReactApplication {
   }
 
   override fun onCreate() {
+    // Ridex is a light-themed app only. Forcing light mode here (rather than
+    // relying solely on the theme's forceDarkAllowed flag) also sidesteps
+    // OEM dark-mode implementations (MIUI/etc.) that otherwise render the
+    // native Google Maps surface as solid black on devices in system dark mode.
+    AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
     super.onCreate()
     loadReactNative(this)
   }

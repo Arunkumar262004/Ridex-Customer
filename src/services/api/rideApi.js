@@ -1,13 +1,7 @@
 import api from './axios';
 
-const getVehicleTypes = async () => {
-  const response = await api.get('/vehicle-types');
-  return response.data;
-};
-
-const getFareEstimate = async ({ vehicleTypeId, pickup, destination }) => {
+const estimateRide = async ({ pickup, destination }) => {
   const response = await api.post('/rides/estimate', {
-    vehicleTypeId,
     pickup: { latitude: pickup.latitude, longitude: pickup.longitude },
     destination: { latitude: destination.latitude, longitude: destination.longitude },
   });
@@ -28,8 +22,7 @@ const getDynamicQrToken = async (rideId) => {
 };
 
 export {
-  getVehicleTypes,
-  getFareEstimate,
+  estimateRide,
   createRide,
   getDynamicQrToken,
 };

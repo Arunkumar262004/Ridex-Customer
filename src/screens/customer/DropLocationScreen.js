@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -6,40 +6,88 @@ import {
   StyleSheet,
   TouchableOpacity,
   FlatList,
-  SafeAreaView,
+  ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import colors from '../../constants/colors';
-
-const RECENT_PLACES = [
-  { id: '1', title: '252', address: 'Mettupalayam Main Rd, Saibaba Koil, Coimbatore' },
-  { id: '2', title: 'Tachil Centre', address: 'No. 10, Raja Annamalai Rd, Opposite City Union Bank' },
-  { id: '3', title: '21/22', address: 'Jawahar Nagar, Saibaba Colony, Coimbatore, Tamil Nadu' },
-  { id: '4', title: '2010', address: 'Mettupalayam Main Rd, Kuppakonam Pudur, Coimbatore' },
-];
+import { searchPlaces, getPlaceDetails } from '../../services/api/placesApi';
+import { getRecentSearches, addRecentSearch } from '../../utils/recentSearches';
 
 const DropLocationScreen = ({ navigation, route }) => {
   const { pickup, serviceType } = route.params || {};
 
-  const [destinationText, setDestinationText] = useState('');
+  const [pickupText, setPickupText] = useState(pickup?.address || 'Current Location');
+  const [pickupCoords, setPickupCoords] = useState({ latitude: pickup?.latitude, longitude: pickup?.longitude });
 
-  const proceedWithDestination = address => {
+  const [destinationText, setDestinationText] = useState('');
+  const [activeField, setActiveField] = useState('destination');
+  const [suggestions, setSuggestions] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [recentSearches, setRecentSearches] = useState([]);
+
+  useEffect(() => {
+    getRecentSearches().then(setRecentSearches);
+  }, []);
+
+  useEffect(() => {
+    const query = activeField === 'pickup' ? pickupText : destinationText;
+
+    if (!query || query.trim().length < 3) {
+      setSuggestions([]);
+      return undefined;
+    }
+
+    setSearching(true);
+    const timer = setTimeout(async () => {
+      const results = await searchPlaces(query, pickupCoords);
+      setSuggestions(results);
+      setSearching(false);
+    }, 350);
+
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickupText, destinationText, activeField]);
+
+  const proceedWithDestination = async destination => {
+    const savedRecent = await addRecentSearch({
+      address: destination.address,
+      latitude: destination.latitude,
+      longitude: destination.longitude,
+    });
+    setRecentSearches(savedRecent);
+
     navigation.navigate('VehicleSelection', {
-      pickup,
-      destination: {
-        address,
-        latitude: pickup.latitude + 0.02,
-        longitude: pickup.longitude + 0.02,
-      },
+      pickup: { address: pickupText, ...pickupCoords },
+      destination,
       serviceType,
     });
   };
 
-  const handleSubmitDestination = () => {
-    if (!destinationText.trim()) {
-      return;
-    }
+  const handleSelectSuggestion = async suggestion => {
+    setSuggestions([]);
 
-    proceedWithDestination(destinationText.trim());
+    try {
+      const details = await getPlaceDetails(suggestion.placeId);
+
+      if (activeField === 'pickup') {
+        setPickupText(details.address);
+        setPickupCoords({ latitude: details.latitude, longitude: details.longitude });
+      } else {
+        setDestinationText(details.address);
+        await proceedWithDestination(details);
+      }
+    } catch (error) {
+      console.log('Place details error:', error.message);
+    }
+  };
+
+  const handleSelectOnMap = () => {
+    navigation.navigate('MapPicker', {
+      initialCoords: pickupCoords,
+      onConfirm: 'destination',
+      pickup: { address: pickupText, ...pickupCoords },
+      serviceType,
+    });
   };
 
   return (
@@ -57,9 +105,14 @@ const DropLocationScreen = ({ navigation, route }) => {
       <View style={styles.locationCard}>
         <View style={styles.locationRow}>
           <View style={[styles.dot, styles.greenDot]} />
-          <Text style={styles.locationText} numberOfLines={1}>
-            {pickup?.address || 'Current Location'}
-          </Text>
+          <TextInput
+            style={styles.locationInput}
+            value={pickupText}
+            onChangeText={setPickupText}
+            onFocus={() => setActiveField('pickup')}
+            placeholder="Pickup location"
+            placeholderTextColor={colors.textSecondary}
+          />
         </View>
 
         <View style={styles.dashedLine} />
@@ -67,20 +120,20 @@ const DropLocationScreen = ({ navigation, route }) => {
         <View style={styles.locationRow}>
           <View style={[styles.dot, styles.redDot]} />
           <TextInput
-            style={styles.destinationInput}
+            style={styles.locationInput}
             value={destinationText}
             onChangeText={setDestinationText}
+            onFocus={() => setActiveField('destination')}
             placeholder="Drop location"
             placeholderTextColor={colors.textSecondary}
             autoFocus
             returnKeyType="search"
-            onSubmitEditing={handleSubmitDestination}
           />
         </View>
       </View>
 
       <View style={styles.actionRow}>
-        <TouchableOpacity style={styles.actionPill}>
+        <TouchableOpacity style={styles.actionPill} onPress={handleSelectOnMap}>
           <Text style={styles.actionText}>📍 Select on map</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.actionPill}>
@@ -88,26 +141,53 @@ const DropLocationScreen = ({ navigation, route }) => {
         </TouchableOpacity>
       </View>
 
-      <FlatList
-        data={RECENT_PLACES}
-        keyExtractor={item => item.id}
-        contentContainerStyle={styles.list}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.recentRow}
-            onPress={() => proceedWithDestination(`${item.title}, ${item.address}`)}
-          >
-            <Text style={styles.historyIcon}>↻</Text>
-            <View style={styles.recentTextBox}>
-              <Text style={styles.recentTitle}>{item.title}</Text>
-              <Text style={styles.recentAddress} numberOfLines={1}>
+      {searching && (
+        <ActivityIndicator style={styles.searchSpinner} color={colors.primary} />
+      )}
+
+      {suggestions.length > 0 ? (
+        <FlatList
+          data={suggestions}
+          keyExtractor={item => item.placeId}
+          contentContainerStyle={styles.list}
+          keyboardShouldPersistTaps="handled"
+          renderItem={({ item }) => (
+            <TouchableOpacity style={styles.recentRow} onPress={() => handleSelectSuggestion(item)}>
+              <Text style={styles.historyIcon}>📍</Text>
+              <Text style={styles.recentAddress} numberOfLines={2}>
+                {item.description}
+              </Text>
+            </TouchableOpacity>
+          )}
+        />
+      ) : (
+        <FlatList
+          data={recentSearches}
+          keyExtractor={(item, index) => `${item.address}-${index}`}
+          contentContainerStyle={styles.list}
+          ListHeaderComponent={
+            recentSearches.length > 0 ? (
+              <Text style={styles.recentHeading}>Recent</Text>
+            ) : null
+          }
+          ListEmptyComponent={
+            <Text style={styles.emptyText}>
+              Search for a drop location above — your recent searches will show up here.
+            </Text>
+          }
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={styles.recentRow}
+              onPress={() => proceedWithDestination(item)}
+            >
+              <Text style={styles.historyIcon}>↻</Text>
+              <Text style={styles.recentAddress} numberOfLines={2}>
                 {item.address}
               </Text>
-            </View>
-            <Text style={styles.heartIcon}>♡</Text>
-          </TouchableOpacity>
-        )}
-      />
+            </TouchableOpacity>
+          )}
+        />
+      )}
     </SafeAreaView>
   );
 };
@@ -167,13 +247,7 @@ const styles = StyleSheet.create({
   redDot: {
     backgroundColor: colors.danger,
   },
-  locationText: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  destinationInput: {
+  locationInput: {
     flex: 1,
     fontSize: 15,
     fontWeight: '600',
@@ -206,9 +280,24 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.text,
   },
+  searchSpinner: {
+    marginTop: 10,
+  },
   list: {
     paddingHorizontal: 20,
     paddingTop: 8,
+  },
+  recentHeading: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.textSecondary,
+    marginBottom: 6,
+  },
+  emptyText: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginTop: 20,
+    lineHeight: 20,
   },
   recentRow: {
     flexDirection: 'row',
@@ -222,23 +311,11 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginRight: 14,
   },
-  recentTextBox: {
-    flex: 1,
-  },
-  recentTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.text,
-  },
   recentAddress: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  heartIcon: {
-    fontSize: 18,
-    color: colors.borderStrong,
-    marginLeft: 10,
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
   },
 });
 
