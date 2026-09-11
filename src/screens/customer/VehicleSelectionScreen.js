@@ -13,8 +13,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import RideMap from '../../components/map/RideMap';
 import colors from '../../constants/colors';
-import { estimateRide } from '../../services/api/rideApi';
+import { estimateRide, getVehicleTypes } from '../../services/api/rideApi';
+import { getNearbyCaptains } from '../../services/api/userApi';
 import { getDistanceInMeters } from '../../services/location/locationService';
+import { getVehicleIcon } from '../../utils/vehicleIcon';
+
+const NEARBY_CAPTAINS_RADIUS_METERS = 5000;
+const NEARBY_CAPTAINS_POLL_MS = 10000;
 
 // Mirrors server/src/utils/seedVehicleTypes.js (the master VehicleType
 // collection the Admin pricing panel manages) — used only as a fallback if
@@ -28,17 +33,6 @@ const DEFAULT_RIDE_OPTIONS = [
   { _id: 'premium-auto', name: 'Premium Auto', baseFare: 55, ratePerKm: 20, ratePerMin: 2.5, minFare: 70, capacity: 3 },
   { _id: 'premium-car', name: 'Premium Car', baseFare: 150, ratePerKm: 35, ratePerMin: 4.5, minFare: 170, capacity: 4 },
 ];
-
-// Fallback only, used when a vehicle type has no admin-uploaded photo
-// (item.imageUrl) — a display nicety derived from the vehicle's name.
-const ICON_RULES = [
-  { match: /bike/i, icon: 'motorbike' },
-  { match: /auto/i, icon: 'rickshaw' },
-  { match: /premium/i, icon: 'car-side' },
-  { match: /cab|car/i, icon: 'car' },
-  { match: /scoot/i, icon: 'moped' },
-];
-const getVehicleIcon = name => (ICON_RULES.find(rule => rule.match.test(name || ''))?.icon) || 'taxi';
 
 // Master pricing has no "captain dispatch ETA" concept (that's live
 // dispatch/logistics, not fare config) — a flat display default stands in.
@@ -59,46 +53,87 @@ const buildFallbackVehicles = (pickup, destination) => {
   });
 };
 
-// Real-time captain GPS isn't tracked server-side yet (see RootNavigator /
-// LocationGate work), so this is a display-only cluster of nearby-partner
-// markers around the pickup point — close enough offsets to look like a
-// live cluster, tagged with the same icon as whichever vehicle the
-// customer currently has selected so the map badges match the ride row.
-const buildNearbyCaptains = (pickup, icon) => {
-  if (!pickup) {
-    return [];
-  }
-
-  const offsets = [
-    [-0.006, -0.004], [-0.003, -0.007], [0.002, -0.005],
-    [0.007, 0.003], [0.009, 0.006], [0.01, 0.008],
-  ];
-
-  return offsets.map(([latOffset, lngOffset], index) => ({
-    id: `captain-${index}`,
-    latitude: pickup.latitude + latOffset,
-    longitude: pickup.longitude + lngOffset,
-    icon,
-  }));
-};
-
 const formatDropTime = totalMinutesFromNow => {
   const dropTime = new Date(Date.now() + totalMinutesFromNow * 60 * 1000);
   return dropTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 };
 
 const VehicleSelectionScreen = ({ navigation, route }) => {
-  const { pickup, destination } = route.params || {};
+  const { pickup, destination, preselectVehicleTypeId } = route.params || {};
 
   const [rideOptions, setRideOptions] = useState([]);
   const [selectedOption, setSelectedOption] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [liveCaptains, setLiveCaptains] = useState([]);
+  // Admin-uploaded vehicle photos, keyed by name, fetched from the same
+  // reliable /vehicle-types endpoint the home screen uses. Kept separate
+  // from the fare estimate so a photo still shows even when live fare
+  // estimation (which depends on the Google Directions API) falls back to
+  // the offline distance-based pricing below - that fallback list never
+  // carries imageUrl, but the real photo should still appear.
+  const [vehiclePhotos, setVehiclePhotos] = useState({});
 
   const selectedIcon = getVehicleIcon(selectedOption?.name);
+  // Every marker is real - id/position comes straight from the
+  // nearby-captains API, never a fabricated offset. The icon is the only
+  // thing derived locally, so the badges match whichever ride row the
+  // customer currently has selected.
   const nearbyCaptains = useMemo(
-    () => buildNearbyCaptains(pickup, selectedIcon),
-    [pickup, selectedIcon],
+    () => liveCaptains.map(captain => ({ ...captain, icon: selectedIcon })),
+    [liveCaptains, selectedIcon],
   );
+
+  useEffect(() => {
+    if (!pickup?.latitude || !pickup?.longitude) {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const fetchNearbyCaptains = async () => {
+      try {
+        const response = await getNearbyCaptains({
+          latitude: pickup.latitude,
+          longitude: pickup.longitude,
+          radiusMeters: NEARBY_CAPTAINS_RADIUS_METERS,
+        });
+        const captains = response.data || response || [];
+        if (!cancelled) {
+          setLiveCaptains(captains);
+        }
+      } catch (error) {
+        // No live captains to show beats showing fake ones - just leave
+        // the map without nearby markers if the call fails.
+        console.log('Nearby captains fetch failed:', error?.response?.data || error.message);
+      }
+    };
+
+    fetchNearbyCaptains();
+    const pollId = setInterval(fetchNearbyCaptains, NEARBY_CAPTAINS_POLL_MS);
+
+    return () => {
+      cancelled = true;
+      clearInterval(pollId);
+    };
+  }, [pickup?.latitude, pickup?.longitude]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const response = await getVehicleTypes();
+        const types = response.data || response || [];
+        const photos = {};
+        types.forEach(type => {
+          if (type.imageUrl) {
+            photos[type.name] = type.imageUrl;
+          }
+        });
+        setVehiclePhotos(photos);
+      } catch (error) {
+        console.log('Vehicle photos fetch failed:', error?.response?.data || error.message);
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -107,18 +142,32 @@ const VehicleSelectionScreen = ({ navigation, route }) => {
         const vehicles = (response.data || response).vehicles;
 
         setRideOptions(vehicles);
-        setSelectedOption(vehicles[0]);
+        setSelectedOption(
+          vehicles.find(v => v._id === preselectVehicleTypeId) || vehicles[0],
+        );
       } catch (error) {
         console.log('Live fare estimate failed, using distance-based fallback:', error?.response?.data || error.message);
 
         const fallback = buildFallbackVehicles(pickup, destination);
         setRideOptions(fallback);
-        setSelectedOption(fallback[0]);
+        setSelectedOption(
+          fallback.find(v => v._id === preselectVehicleTypeId) || fallback[0],
+        );
       } finally {
         setLoading(false);
       }
     })();
+    // preselectVehicleTypeId is only read to pick the initial selection -
+    // it's fixed for this screen instance and shouldn't re-trigger a fresh
+    // fare estimate on its own.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickup, destination]);
+
+  // Merges in the admin photo looked up separately (see vehiclePhotos
+  // above) so it travels forward through booking/searching instead of
+  // getting dropped whenever a vehicle's own record has no imageUrl (the
+  // offline fallback list never does).
+  const withPhoto = v => ({ ...v, imageUrl: v.imageUrl || vehiclePhotos[v.name] });
 
   const handleBook = () => {
     if (!selectedOption) {
@@ -128,12 +177,16 @@ const VehicleSelectionScreen = ({ navigation, route }) => {
     navigation.navigate('ConfirmPickup', {
       pickup,
       destination,
-      vehicle: selectedOption,
+      vehicle: withPhoto(selectedOption),
       fareDetails: {
         vehicleName: selectedOption.name,
         total: selectedOption.fare,
         estimatedTime: `${DISPATCH_ETA_MINUTES} mins away`,
       },
+      // The rest of the priced vehicles for this same trip, so the
+      // searching screen can offer "switch to this instead" without
+      // re-running the fare estimate.
+      allVehicles: rideOptions.map(withPhoto),
     });
   };
 
@@ -190,6 +243,7 @@ const VehicleSelectionScreen = ({ navigation, route }) => {
             renderItem={({ item }) => {
               const isSelected = selectedOption?._id === item._id;
               const dropEtaMinutes = DISPATCH_ETA_MINUTES + item.tripDurationMinutes;
+              const photoUrl = item.imageUrl || vehiclePhotos[item.name];
 
               return (
                 <TouchableOpacity
@@ -198,8 +252,8 @@ const VehicleSelectionScreen = ({ navigation, route }) => {
                   activeOpacity={0.8}
                 >
                   <View style={styles.rideIconBox}>
-                    {item.imageUrl ? (
-                      <Image source={{ uri: item.imageUrl }} style={styles.rideImage} resizeMode="cover" />
+                    {photoUrl ? (
+                      <Image source={{ uri: photoUrl }} style={styles.rideImage} resizeMode="cover" />
                     ) : (
                       <MaterialDesignIcons name={getVehicleIcon(item.name)} size={26} color={colors.navy} />
                     )}

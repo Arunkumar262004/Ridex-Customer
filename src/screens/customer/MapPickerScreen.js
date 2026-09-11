@@ -7,24 +7,33 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MapView, Camera } from 'mappls-map-react-native';
+import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import colors from '../../constants/colors';
 import { reverseGeocode } from '../../services/api/placesApi';
 import { addRecentSearch } from '../../utils/recentSearches';
 
 const MapPickerScreen = ({ navigation, route }) => {
-  const { initialCoords, pickup, serviceType } = route.params || {};
+  // `mode` decides what a confirmed pin becomes: 'pickup' returns the
+  // customer to DropLocation with a new pickup point, 'destination' (the
+  // default, used by the original "select on map" entry point) goes
+  // straight on to vehicle selection.
+  const { initialCoords, pickup, preselectVehicleTypeId, mode = 'destination' } = route.params || {};
+  const isPickupMode = mode === 'pickup';
 
   const [coords, setCoords] = useState({
     latitude: initialCoords?.latitude ?? 12.9716,
     longitude: initialCoords?.longitude ?? 77.5946,
   });
-  // Captured once so the Camera only sets the map's starting position and
-  // never fights the user's own panning on subsequent renders.
-  const [initialCenter] = useState([
-    initialCoords?.longitude ?? 77.5946,
-    initialCoords?.latitude ?? 12.9716,
-  ]);
-  const [address, setAddress] = useState('Move the map to select a location');
+  // `defaultSettings` (unlike the reactive `centerCoordinate` prop) is
+  // applied once on native mount and never re-sent to the map after that,
+  // so it can't fight the user's own drag/pan on later re-renders.
+  const [initialCamera] = useState({
+    centerCoordinate: [initialCoords?.longitude ?? 77.5946, initialCoords?.latitude ?? 12.9716],
+    zoomLevel: 16,
+  });
+  const [address, setAddress] = useState(
+    isPickupMode ? pickup?.address || 'Move the map to select your pickup point' : 'Move the map to select a location',
+  );
   const [resolving, setResolving] = useState(false);
 
   const handleRegionDidChange = async feature => {
@@ -39,14 +48,26 @@ const MapPickerScreen = ({ navigation, route }) => {
   };
 
   const handleConfirm = async () => {
-    const destination = { address, ...coords };
+    const selected = { address, ...coords };
 
-    await addRecentSearch(destination);
+    if (isPickupMode) {
+      // Hand the new pickup straight back to DropLocation - it's already
+      // on the stack, so `navigate` re-focuses that instance (and its
+      // in-progress destination text/search state) instead of pushing a
+      // new copy of the screen.
+      navigation.navigate('DropLocation', {
+        pickup: selected,
+        preselectVehicleTypeId,
+      });
+      return;
+    }
+
+    await addRecentSearch(selected);
 
     navigation.navigate('VehicleSelection', {
       pickup,
-      destination,
-      serviceType,
+      destination: selected,
+      preselectVehicleTypeId,
     });
   };
 
@@ -54,11 +75,15 @@ const MapPickerScreen = ({ navigation, route }) => {
     <SafeAreaView style={styles.container}>
       <View style={styles.mapContainer}>
         <MapView style={styles.map} onRegionDidChange={handleRegionDidChange}>
-          <Camera zoomLevel={16} centerCoordinate={initialCenter} />
+          <Camera defaultSettings={initialCamera} />
         </MapView>
 
         <View style={styles.centerPinContainer} pointerEvents="none">
-          <Text style={styles.pinIcon}>📍</Text>
+          <View style={styles.pickupLabel}>
+            <Text style={styles.pickupLabelText}>{isPickupMode ? 'Pickup Point' : 'Drop Point'}</Text>
+          </View>
+          <MaterialDesignIcons name="map-marker" size={40} color={colors.primary} />
+          <View style={styles.pinShadow} />
         </View>
 
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
@@ -67,7 +92,9 @@ const MapPickerScreen = ({ navigation, route }) => {
       </View>
 
       <View style={styles.sheet}>
-        <Text style={styles.sheetTitle}>Drop pin on the map</Text>
+        <Text style={styles.sheetTitle}>
+          {isPickupMode ? 'Select your pickup point' : 'Drop pin on the map'}
+        </Text>
 
         <View style={styles.addressBox}>
           <Text style={styles.addressText} numberOfLines={2}>
@@ -76,7 +103,9 @@ const MapPickerScreen = ({ navigation, route }) => {
         </View>
 
         <TouchableOpacity style={styles.confirmButton} onPress={handleConfirm}>
-          <Text style={styles.confirmButtonText}>Confirm location</Text>
+          <Text style={styles.confirmButtonText}>
+            {isPickupMode ? 'Confirm pickup' : 'Confirm location'}
+          </Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -98,11 +127,36 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: '50%',
     left: '50%',
-    marginLeft: -16,
-    marginTop: -32,
+    marginLeft: -20,
+    marginTop: -68,
+    alignItems: 'center',
   },
-  pinIcon: {
-    fontSize: 32,
+  pickupLabel: {
+    backgroundColor: colors.primary,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    marginBottom: 4,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+  },
+  pickupLabelText: {
+    color: colors.white,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  // A small dark ellipse right under the pin's tip reads as its shadow on
+  // the map surface, so the pin looks like it's pointing at a spot instead
+  // of just floating over the map.
+  pinShadow: {
+    width: 8,
+    height: 4,
+    borderRadius: 4,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    marginTop: -2,
   },
   backButton: {
     position: 'absolute',
@@ -135,7 +189,7 @@ const styles = StyleSheet.create({
   },
   addressBox: {
     borderWidth: 1,
-    borderColor: colors.danger,
+    borderColor: colors.primary,
     borderRadius: 12,
     padding: 14,
     marginBottom: 20,

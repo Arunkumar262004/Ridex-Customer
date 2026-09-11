@@ -7,24 +7,27 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MapView, Camera } from 'mappls-map-react-native';
+import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import colors from '../../constants/colors';
 import { getDistanceInMeters } from '../../services/location/locationService';
 import { reverseGeocode } from '../../services/api/placesApi';
 
 const ConfirmPickupScreen = ({ navigation, route }) => {
-  const { pickup, destination, vehicle, fareDetails } = route.params || {};
+  const { pickup, destination, vehicle, fareDetails, allVehicles } = route.params || {};
 
   const originalPickup = useRef(pickup);
   const [pickupCoords, setPickupCoords] = useState({
     latitude: pickup?.latitude ?? 12.9716,
     longitude: pickup?.longitude ?? 77.5946,
   });
-  // Captured once so the Camera only sets the map's starting position and
-  // never fights the user's own panning on subsequent renders.
-  const [initialCenter] = useState([
-    pickup?.longitude ?? 77.5946,
-    pickup?.latitude ?? 12.9716,
-  ]);
+  // `defaultSettings` (unlike the reactive `centerCoordinate` prop) is
+  // applied once on native mount and is never re-sent to the map after
+  // that - so it can't fight the user's own drag/pan, however many times
+  // this component re-renders while they're dragging the pin.
+  const [initialCamera] = useState({
+    centerCoordinate: [pickup?.longitude ?? 77.5946, pickup?.latitude ?? 12.9716],
+    zoomLevel: 16,
+  });
   const [pickupAddress, setPickupAddress] = useState(pickup?.address || 'Selected pickup point');
   const [distanceMeters, setDistanceMeters] = useState(0);
 
@@ -46,6 +49,7 @@ const ConfirmPickupScreen = ({ navigation, route }) => {
       destination,
       vehicle,
       fareDetails,
+      allVehicles,
     });
   };
 
@@ -53,14 +57,15 @@ const ConfirmPickupScreen = ({ navigation, route }) => {
     <SafeAreaView style={styles.container}>
       <View style={styles.mapContainer}>
         <MapView style={styles.map} onRegionDidChange={handleRegionDidChange}>
-          <Camera zoomLevel={16} centerCoordinate={initialCenter} />
+          <Camera defaultSettings={initialCamera} />
         </MapView>
 
         <View style={styles.centerPinContainer} pointerEvents="none">
           <View style={styles.pickupLabel}>
             <Text style={styles.pickupLabelText}>Pickup Point</Text>
           </View>
-          <Text style={styles.pinIcon}>📍</Text>
+          <MaterialDesignIcons name="map-marker" size={40} color={colors.primary} />
+          <View style={styles.pinShadow} />
         </View>
 
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
@@ -111,23 +116,35 @@ const styles = StyleSheet.create({
     top: '50%',
     left: '50%',
     marginLeft: -20,
-    marginTop: -56,
+    marginTop: -68,
     alignItems: 'center',
   },
   pickupLabel: {
-    backgroundColor: colors.success,
+    backgroundColor: colors.primary,
     borderRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 6,
     marginBottom: 4,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
   },
   pickupLabelText: {
     color: colors.white,
     fontSize: 13,
     fontWeight: '700',
   },
-  pinIcon: {
-    fontSize: 32,
+  // A small dark ellipse right under the pin's tip reads as its shadow on
+  // the map surface, which is what makes a pin icon look like it's really
+  // pointing at a spot instead of just floating over the map.
+  pinShadow: {
+    width: 8,
+    height: 4,
+    borderRadius: 4,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    marginTop: -2,
   },
   backButton: {
     position: 'absolute',
@@ -188,7 +205,7 @@ const styles = StyleSheet.create({
   },
   addressBox: {
     borderWidth: 1,
-    borderColor: colors.success,
+    borderColor: colors.primary,
     borderRadius: 12,
     padding: 14,
     marginBottom: 20,

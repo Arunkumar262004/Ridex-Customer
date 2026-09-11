@@ -14,7 +14,7 @@ import { searchPlaces, getPlaceDetails } from '../../services/api/placesApi';
 import { getRecentSearches, addRecentSearch } from '../../utils/recentSearches';
 
 const DropLocationScreen = ({ navigation, route }) => {
-  const { pickup, serviceType } = route.params || {};
+  const { pickup, preselectVehicleTypeId } = route.params || {};
 
   const [pickupText, setPickupText] = useState(pickup?.address || 'Current Location');
   const [pickupCoords, setPickupCoords] = useState({ latitude: pickup?.latitude, longitude: pickup?.longitude });
@@ -28,6 +28,17 @@ const DropLocationScreen = ({ navigation, route }) => {
   useEffect(() => {
     getRecentSearches().then(setRecentSearches);
   }, []);
+
+  // MapPicker (in pickup mode) navigates back here with an updated
+  // `pickup` param instead of pushing a new copy of this screen - this
+  // syncs that pick into the pickup field/coords without disturbing
+  // whatever the customer had already typed into the destination field.
+  useEffect(() => {
+    if (!pickup) return;
+
+    setPickupText(pickup.address || 'Current Location');
+    setPickupCoords({ latitude: pickup.latitude, longitude: pickup.longitude });
+  }, [pickup]);
 
   useEffect(() => {
     const query = activeField === 'pickup' ? pickupText : destinationText;
@@ -59,7 +70,7 @@ const DropLocationScreen = ({ navigation, route }) => {
     navigation.navigate('VehicleSelection', {
       pickup: { address: pickupText, ...pickupCoords },
       destination,
-      serviceType,
+      preselectVehicleTypeId,
     });
   };
 
@@ -82,11 +93,21 @@ const DropLocationScreen = ({ navigation, route }) => {
   };
 
   const handleSelectOnMap = () => {
+    if (activeField === 'pickup') {
+      navigation.navigate('MapPicker', {
+        initialCoords: pickupCoords,
+        mode: 'pickup',
+        pickup: { address: pickupText, ...pickupCoords },
+        preselectVehicleTypeId,
+      });
+      return;
+    }
+
     navigation.navigate('MapPicker', {
       initialCoords: pickupCoords,
-      onConfirm: 'destination',
+      mode: 'destination',
       pickup: { address: pickupText, ...pickupCoords },
-      serviceType,
+      preselectVehicleTypeId,
     });
   };
 
@@ -134,7 +155,9 @@ const DropLocationScreen = ({ navigation, route }) => {
 
       <View style={styles.actionRow}>
         <TouchableOpacity style={styles.actionPill} onPress={handleSelectOnMap}>
-          <Text style={styles.actionText}>📍 Select on map</Text>
+          <Text style={styles.actionText}>
+            📍 Select {activeField === 'pickup' ? 'pickup' : 'drop'} on map
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.actionPill}>
           <Text style={styles.actionText}>◆ Add stops</Text>
