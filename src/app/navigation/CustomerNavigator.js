@@ -13,6 +13,11 @@ import QRCodeScreen from '../../screens/customer/QRCodeScreen';
 import ActiveRideScreen from '../../screens/customer/ActiveRideScreen';
 import RideHistoryScreen from '../../screens/customer/RideHistoryScreen';
 import WalletScreen from '../../screens/customer/WalletScreen';
+import HelpScreen from '../../screens/customer/HelpScreen';
+import SafetyScreen from '../../screens/customer/SafetyScreen';
+import ReferralScreen from '../../screens/customer/ReferralScreen';
+import NotificationsScreen from '../../screens/customer/NotificationsScreen';
+import SettingsScreen from '../../screens/customer/SettingsScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -40,6 +45,11 @@ const CustomerNavigator = () => {
       <Stack.Screen name="ActiveRideScreen" component={ActiveRideScreen} />
       <Stack.Screen name="RideHistory" component={RideHistoryScreen} />
       <Stack.Screen name="Wallet" component={WalletScreen} />
+      <Stack.Screen name="Help" component={HelpScreen} />
+      <Stack.Screen name="Safety" component={SafetyScreen} />
+      <Stack.Screen name="Referral" component={ReferralScreen} />
+      <Stack.Screen name="Notifications" component={NotificationsScreen} />
+      <Stack.Screen name="Settings" component={SettingsScreen} />
     </Stack.Navigator>
   );
 };

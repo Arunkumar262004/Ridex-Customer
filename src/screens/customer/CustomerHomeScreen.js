@@ -100,7 +100,7 @@ const CustomerHomeScreen = ({ navigation }) => {
 
         <View style={styles.exploreHeader}>
           <Text style={styles.exploreTitle}>Explore</Text>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('AllServices')}>
             <Text style={styles.viewAll}>View All ›</Text>
           </TouchableOpacity>
         </View>
@@ -115,7 +115,7 @@ const CustomerHomeScreen = ({ navigation }) => {
             >
               <View style={styles.exploreIconBox}>
                 {item.imageUrl ? (
-                  <Image source={{ uri: item.imageUrl }} style={styles.exploreImage} resizeMode="cover" />
+                  <Image source={{ uri: item.imageUrl }} style={styles.exploreImage} resizeMode="contain" />
                 ) : (
                   <MaterialDesignIcons name={getVehicleIcon(item.name)} size={26} color={colors.navy} />
                 )}

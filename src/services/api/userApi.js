@@ -12,4 +12,9 @@ const getNearbyCaptains = async ({ latitude, longitude, radiusMeters }) => {
   return response.data;
 };
 
-export { getNearbyCaptains };
+const deleteAccount = async () => {
+  const response = await api.delete('/users/profile');
+  return response.data;
+};
+
+export { getNearbyCaptains, deleteAccount };

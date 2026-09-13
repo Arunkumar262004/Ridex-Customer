@@ -60,4 +60,53 @@ const reverseGeocode = async (latitude, longitude) => {
   }
 };
 
-export { searchPlaces, getPlaceDetails, reverseGeocode };
+const getMapplsRoute = async (origin, destination) => {
+  if (!origin || !destination) return null;
+
+  const originLat = origin.latitude ?? origin.lat;
+  const originLng = origin.longitude ?? origin.lng;
+  const destLat = destination.latitude ?? destination.lat;
+  const destLng = destination.longitude ?? destination.lng;
+
+  if (originLat == null || originLng == null || destLat == null || destLng == null) {
+    return null;
+  }
+
+  try {
+    const response = await RestApi.direction({
+      origin: `${originLat},${originLng}`,
+      destination: `${destLat},${destLng}`,
+      profile: RestApi.DirectionsCriteria?.PROFILE_DRIVING || 'driving',
+      overview: RestApi.DirectionsCriteria?.OVERVIEW_FULL || 'full',
+      geometries: RestApi.DirectionsCriteria?.GEOMETRY_COORDINATES || 'polyline',
+    });
+
+    const route = response?.routes?.[0];
+    if (route) {
+      if (Array.isArray(route.geometry?.coordinates) && route.geometry.coordinates.length > 0) {
+        return route.geometry.coordinates;
+      }
+    }
+  } catch (err) {
+    console.log('Mappls RestApi.direction error:', err?.message || err);
+  }
+
+  try {
+    const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${originLng},${originLat};${destLng},${destLat}?overview=full&geometries=geojson`;
+    const res = await fetch(osrmUrl);
+    const json = await res.json();
+    const coords = json?.routes?.[0]?.geometry?.coordinates;
+    if (Array.isArray(coords) && coords.length > 0) {
+      return coords;
+    }
+  } catch (osrmErr) {
+    console.log('OSRM fallback route error:', osrmErr?.message || osrmErr);
+  }
+
+  return [
+    [originLng, originLat],
+    [destLng, destLat],
+  ];
+};
+
+export { searchPlaces, getPlaceDetails, reverseGeocode, getMapplsRoute };

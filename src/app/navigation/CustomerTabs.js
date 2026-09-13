@@ -1,23 +1,30 @@
 import React from 'react';
-import { Text, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 
 import CustomerHomeScreen from '../../screens/customer/CustomerHomeScreen';
 import AllServicesScreen from '../../screens/customer/AllServicesScreen';
 import ProfileScreen from '../../screens/customer/ProfileScreen';
 import colors from '../../constants/colors';
 
-const TAB_ICONS = {
-  Ride: '🏠',
-  AllServices: '➤',
-  Profile: '👤',
+const TAB_ICON_NAMES = {
+  Ride: 'home-outline',
+  AllServices: 'view-grid-outline',
+  Profile: 'account-outline',
 };
 
 const Tab = createBottomTabNavigator();
 
-const renderTabIcon = (routeName, color) => (
-  <Text style={[styles.tabIcon, { color }]}>{TAB_ICONS[routeName]}</Text>
-);
+const renderTabIcon = (routeName, color, focused) => {
+  let iconName = TAB_ICON_NAMES[routeName] || 'circle';
+  if (focused) {
+    if (routeName === 'Ride') iconName = 'home';
+    if (routeName === 'AllServices') iconName = 'view-grid';
+    if (routeName === 'Profile') iconName = 'account';
+  }
+  return <MaterialDesignIcons name={iconName} size={24} color={color} />;
+};
 
 const CustomerTabs = () => {
   return (
@@ -26,7 +33,7 @@ const CustomerTabs = () => {
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textSecondary,
-        tabBarIcon: ({ color }) => renderTabIcon(route.name, color),
+        tabBarIcon: ({ color, focused }) => renderTabIcon(route.name, color, focused),
       })}
     >
       <Tab.Screen name="Ride" component={CustomerHomeScreen} />
@@ -40,10 +47,6 @@ const CustomerTabs = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  tabIcon: {
-    fontSize: 20,
-  },
-});
+const styles = StyleSheet.create({});
 
 export default CustomerTabs;

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View, TouchableOpacity } from 'react-native';
 import {
   MapView,
@@ -11,6 +11,7 @@ import {
 } from 'mappls-map-react-native';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import colors from '../../constants/colors';
+import { getMapplsRoute } from '../../services/api/placesApi';
 
 const DEFAULT_COORDS = { latitude: 12.9716, longitude: 77.5946 };
 
@@ -42,6 +43,8 @@ const VEHICLE_ICON_BY_TYPE = {
 
 const RideMap = ({ location, destination, captainLocation, nearbyCaptains, showRecenterButton = true }) => {
   const cameraRef = useRef(null);
+  const [routeCoords, setRouteCoords] = useState(null);
+
   // Every value below is memoized off the *primitive* lat/lng, not the raw
   // `location`/`destination` prop objects. Those objects get a brand new
   // reference on every parent re-render (a captain's live GPS ping, a list
@@ -86,6 +89,29 @@ const RideMap = ({ location, destination, captainLocation, nearbyCaptains, showR
     requestAndroidLocationPermissions().catch(() => {});
   }, []);
 
+  const routeStart = captainCoords || pickupCoords;
+
+  useEffect(() => {
+    let isMounted = true;
+    if (dropoffCoords && routeStart) {
+      getMapplsRoute(routeStart, dropoffCoords).then(coords => {
+        if (isMounted && coords && coords.length > 0) {
+          setRouteCoords(coords);
+        }
+      });
+    } else {
+      setRouteCoords(null);
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    routeStart?.latitude,
+    routeStart?.longitude,
+    dropoffCoords?.latitude,
+    dropoffCoords?.longitude,
+  ]);
+
   // The camera no longer auto-follows pickup on every render (see above),
   // so give the customer an explicit way to snap back to it - the same
   // "locate me" affordance most ride-hailing map screens offer.
@@ -93,18 +119,23 @@ const RideMap = ({ location, destination, captainLocation, nearbyCaptains, showR
     cameraRef.current?.moveTo(pickupCenter, 500);
   };
 
-  const routeStart = captainCoords || pickupCoords;
-  const routeLine =
-    dropoffCoords && routeStart
-      ? {
-          type: 'Feature',
-          properties: {},
-          geometry: {
-            type: 'LineString',
-            coordinates: [toLngLat(routeStart), toLngLat(dropoffCoords)],
-          },
-        }
+  const activeCoordinates =
+    routeCoords && routeCoords.length > 0
+      ? routeCoords
+      : dropoffCoords && routeStart
+      ? [toLngLat(routeStart), toLngLat(dropoffCoords)]
       : null;
+
+  const routeLine = activeCoordinates
+    ? {
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'LineString',
+          coordinates: activeCoordinates,
+        },
+      }
+    : null;
 
   return (
     <View style={styles.wrap}>
@@ -167,7 +198,7 @@ const RideMap = ({ location, destination, captainLocation, nearbyCaptains, showR
           <ShapeSource id="routeLineSource" shape={routeLine}>
             <LineLayer
               id="routeLineLayer"
-              style={{ lineColor: '#FF6600', lineWidth: 4 }}
+              style={{ lineColor: '#FF6600', lineWidth: 5, lineJoin: 'round', lineCap: 'round' }}
             />
           </ShapeSource>
         )}
